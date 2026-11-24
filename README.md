@@ -2,7 +2,7 @@
 
 This project is part of the **SCTEC AI Agents course**. It answers stock questions in English and uses instructor **Wanderson Souza's** [stock API](https://github.com/wangsouza/api-estoque) for product data and his [course repository](https://github.com/wangsouza/agents-senai) as a reference for LangGraph, HTTP tools, and n8n.
 
-[Download the demonstration (MP4)](evidence/inventory-demo.mp4?raw=1) · [View the recorded executions](evidence/executions.json)
+[View the recorded executions](evidence/executions.json)
 
 ## How the agent works
 
@@ -48,7 +48,7 @@ If port 8000 is in use, start the stock API on another port and set `STOCK_API_U
 
 ### 2. Start the model
 
-For the same setup used in the demonstration, download and extract the [llama.cpp Windows CPU build](https://github.com/ggml-org/llama.cpp/releases/download/b12655/llama-b12655-bin-win-cpu-x64.zip) and download the [Qwen2.5-1.5B-Instruct Q4_K_M model file](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/blob/main/qwen2.5-1.5b-instruct-q4_k_m.gguf). In the directory containing `llama-server.exe`, run the following with the actual path to your GGUF file.
+For the same setup used in the recorded tests, download and extract the [llama.cpp Windows CPU build](https://github.com/ggml-org/llama.cpp/releases/download/b12655/llama-b12655-bin-win-cpu-x64.zip) and download the [Qwen2.5-1.5B-Instruct Q4_K_M model file](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/blob/main/qwen2.5-1.5b-instruct-q4_k_m.gguf). In the directory containing `llama-server.exe`, run the following with the actual path to your GGUF file.
 
 ```powershell
 .\llama-server.exe -m "C:\path\to\qwen2.5-1.5b-instruct-q4_k_m.gguf" --host 127.0.0.1 --port 8080 --alias qwen-inventory --ctx-size 2048
