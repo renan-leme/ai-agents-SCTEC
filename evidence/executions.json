@@ -1,0 +1,134 @@
+{
+  "captured_at": "2026-11-23T20:56:13-03:00",
+  "environment": {
+    "python": "3.14.3",
+    "langgraph": "1.2.24",
+    "model": "Qwen2.5-1.5B-Instruct (Q4_K_M)",
+    "model_server": "llama.cpp b12655",
+    "stock_api_commit": "72187d9afdb23c9f972485b456f57876a1146672",
+    "stock_api_url": "http://127.0.0.1:8002",
+    "agent_url": "http://127.0.0.1:8001/analyze"
+  },
+  "agent_scenarios": [
+    {
+      "scenario": "Existing product",
+      "input": {
+        "question": "Is PRD-001 low on stock?"
+      },
+      "expected": {
+        "route": "lookup",
+        "tool_called": true,
+        "stock_api_status": 200,
+        "stock_level": "low",
+        "product_code": "PRD-001",
+        "quantity": 5,
+        "minimum": 10
+      },
+      "observed": {
+        "route": "lookup",
+        "answer": "Mouse sem fio (PRD-001) has 5 un in stock (minimum: 10 un). Its stock level is low.",
+        "tool_called": true,
+        "stock_api_status": 200,
+        "stock_level": "low",
+        "product": {
+          "code": "PRD-001",
+          "name": "Mouse sem fio",
+          "quantity": 5,
+          "minimum": 10,
+          "unit": "un"
+        }
+      }
+    },
+    {
+      "scenario": "Missing product",
+      "input": {
+        "question": "Check the stock of PRD-999."
+      },
+      "expected": {
+        "route": "lookup",
+        "tool_called": true,
+        "stock_api_status": 404,
+        "answer_contains": "not found"
+      },
+      "observed": {
+        "route": "lookup",
+        "answer": "Product PRD-999 was not found.",
+        "tool_called": true,
+        "stock_api_status": 404
+      }
+    },
+    {
+      "scenario": "Concept question",
+      "input": {
+        "question": "What does minimum stock mean?"
+      },
+      "expected": {
+        "route": "explain",
+        "tool_called": false,
+        "answer_contains": "stock"
+      },
+      "observed": {
+        "route": "explain",
+        "answer": "Minimum stock is the threshold used to identify inventory that may need replenishment. It indicates the lowest level of stock that should be maintained to ensure that the supply chain can meet customer demand without running out of stock.",
+        "tool_called": false
+      }
+    },
+    {
+      "scenario": "Upstream failure",
+      "input": {
+        "question": "Check the stock of PRD-503."
+      },
+      "expected": {
+        "route": "lookup",
+        "tool_called": true,
+        "stock_api_status": 503,
+        "answer_contains": "temporarily unavailable"
+      },
+      "observed": {
+        "route": "lookup",
+        "answer": "The stock API is temporarily unavailable.",
+        "tool_called": true,
+        "stock_api_status": 503
+      }
+    }
+  ],
+  "n8n_execution": {
+    "scenario": "n8n forwards a stock question to the Python agent",
+    "n8n_version": "2.35.7",
+    "webhook_url": "http://127.0.0.1:5678/webhook/inventory-analysis",
+    "webhook_http_status": 200,
+    "workflow_id": "SctecInventory01",
+    "input": {
+      "question": "How many units of PRD-004 are available?"
+    },
+    "expected": {
+      "route": "lookup",
+      "tool_called": true,
+      "stock_api_status": 200,
+      "stock_level": "out_of_stock",
+      "quantity": 0
+    },
+    "observed": {
+      "route": "lookup",
+      "answer": "Cabo HDMI 2 m (PRD-004) has 0 un in stock (minimum: 20 un). Its stock level is out of stock.",
+      "tool_called": true,
+      "stock_api_status": 200,
+      "stock_level": "out_of_stock",
+      "product": {
+        "code": "PRD-004",
+        "name": "Cabo HDMI 2 m",
+        "quantity": 0,
+        "minimum": 20,
+        "unit": "un"
+      }
+    },
+    "n8n_execution_id": 1,
+    "n8n_execution_status": "success",
+    "nodes_observed": [
+      "Receive Question",
+      "Call Python Agent"
+    ],
+    "environment": "n8n Docker image on an isolated Linux runner",
+    "verification_run": "https://github.com/renan-leme/ai-agents-SCTEC/actions/runs/45298329349"
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "name": "Inventory Analysis",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "inventory-analysis",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "980e74d3-3ba6-4ba9-acc2-680eddba22fa",
+      "name": "Receive Question",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "964edc9a-bcbe-4593-9bea-64515fe28232"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8001/analyze",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "question",
+              "value": "={{ $json.body.question }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 45000
+        }
+      },
+      "id": "c0245148-39fe-43bb-a9de-e68daebfc68a",
+      "name": "Call Python Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Receive Question": {
+      "main": [
+        [
+          {
+            "node": "Call Python Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
