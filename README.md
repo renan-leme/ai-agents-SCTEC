@@ -1,6 +1,6 @@
 # SCTEC Inventory Assistant
 
-This project is part of the **SCTEC AI Agents course**. It answers stock questions in English and uses instructor **Wanderson Souza's** [stock API](https://github.com/wangsouza/api-estoque) for product data and his [course repository](https://github.com/wangsouza/agents-senai) as a reference for LangGraph, HTTP tools, and n8n.
+This project is part of the **SCTEC AI Agents course**. It uses **Gemini 3.8 Flash** to interpret stock questions in English and instructor **Wanderson Souza's** [stock API](https://github.com/wangsouza/api-estoque) as its data source. His [course repository](https://github.com/wangsouza/agents-senai) is the reference for LangGraph, HTTP tools, and n8n.
 
 [View the recorded executions](evidence/executions.json)
 
@@ -14,7 +14,7 @@ flowchart LR
     Analyze --> End
 ```
 
-The shared state carries the question, the validated code when present, and the result. The first node asks the LLM to distinguish an actual stock lookup from a conceptual question or an unsupported request. Python checks that a lookup has one unambiguous code. The conditional edge then either calls the stock node or finishes with a direct answer.
+The shared state carries the question, the validated code when present, and the result. The first node requests a structured answer from Gemini through the Google Gemini API and validates the intent with Pydantic. Python checks that a lookup has one unambiguous code. The conditional edge either calls the stock node or finishes with a direct answer.
 
 The stock node calls `lookup_product(code)` in [stock.py](inventory_agent/stock.py). That tool uses `GET /produtos/{codigo}`, checks the HTTP status, and validates the response with Pydantic. The LLM receives only the question. Python builds product answers from the validated quantities and unit returned by the official API.
 
@@ -28,7 +28,7 @@ The response includes `route`, `tool_called`, and the upstream HTTP status when 
 
 ## Run locally
 
-You need Python 3.11 or newer, Git, and an OpenAI-compatible chat model that accepts structured JSON output. The commands below use PowerShell.
+You need Python 3.11 or newer, Git, internet access, and a Google AI Studio API key with access to `gemini-3.8-flash`. The commands below use PowerShell.
 
 ### 1. Start the official stock API
 
@@ -46,15 +46,14 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 The official API's Swagger is at [localhost:8000/docs](http://127.0.0.1:8000/docs).
 If port 8000 is in use, start the stock API on another port and set `STOCK_API_URL` in the agent's `.env`. The recorded run used port 8002 for the stock API.
 
-### 2. Start the model
+### 2. Configure Gemini 3.8 Flash
 
-For the same setup used in the recorded tests, download and extract the [llama.cpp Windows CPU build](https://github.com/ggml-org/llama.cpp/releases/download/b12655/llama-b12655-bin-win-cpu-x64.zip) and download the [Qwen2.5-1.5B-Instruct Q4_K_M model file](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/blob/main/qwen2.5-1.5b-instruct-q4_k_m.gguf). In the directory containing `llama-server.exe`, run the following with the actual path to your GGUF file.
+Create a key in [Google AI Studio](https://aistudio.google.com/apikey) with access to [Gemini 3.8 Flash](https://aistudio.google.com/docs/models/gemini-3.8-flash). From the project folder, create `.env` if needed and set `GEMINI_API_KEY` in that file. Keep the key in your local `.env` or environment variables.
 
 ```powershell
-.\llama-server.exe -m "C:\path\to\qwen2.5-1.5b-instruct-q4_k_m.gguf" --host 127.0.0.1 --port 8080 --alias qwen-inventory --ctx-size 2048
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+notepad .env
 ```
-
-A hosted OpenAI-compatible provider can also be configured using `LLM_BASE_URL`, `LLM_MODEL`, and `LLM_API_KEY` in `.env`. Keep API keys in that local file or in environment variables.
 
 ### 3. Start the agent
 
@@ -64,7 +63,6 @@ Run from this repository in a separate terminal.
 python -m venv .venv
 . .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 python -m uvicorn inventory_agent.main:app --env-file .env --host 127.0.0.1 --port 8001
 ```
 
@@ -85,11 +83,15 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8001/analyze `
 
 The webhook passes the question to the Python endpoint and returns the last node's JSON. LangGraph owns the intent decision, API call, and answer.
 
-The workflow was imported, executed, and exported with n8n 2.35.7 in Docker. The [verification run](https://github.com/renan-leme/ai-agents-SCTEC/actions/runs/45298329349) shows the actual webhook response and saved workflow execution.
+The workflow was imported, executed, and exported with n8n 2.35.7 in Docker. The [original verification run](https://github.com/renan-leme/ai-agents-SCTEC/actions/runs/45298329349) predates the Gemini migration and shows the webhook response and saved workflow execution.
 
 ## Reproduce the evaluation tests
 
-Repeat the agent request above with each question. The [recorded executions](evidence/executions.json) include the inputs, expected and observed outcomes, and the n8n webhook execution.
+Repeat the agent request above with each question to test with Gemini. The [test evidence](evidence/executions.json) identifies which services were used in the recorded checks. The Gemini adapter also has a regression suite that uses simulated responses and requires no API key.
+
+```powershell
+python -m unittest discover -s tests -v
+```
 
 | Scenario | Question | Expected result |
 | --- | --- | --- |
@@ -100,4 +102,4 @@ Repeat the agent request above with each question. The [recorded executions](evi
 
 ## Limitations
 
-This is a single-question, single-product prototype. A product lookup needs a `PRD-XXX` code, and each request starts a fresh graph run. The tool has read-only access. The official API and the agent are intended for local course use. Intent classification depends on the configured model, and stock lookup depends on the official API being available.
+This is a single-question, single-product prototype. A product lookup needs a `PRD-XXX` code, and each request starts a fresh graph run. The tool has read-only access. The official stock API and the agent run locally, and the agent sends the question to Google's API for interpretation. Model calls depend on Gemini API access and quota, and stock lookup depends on the official API being available.

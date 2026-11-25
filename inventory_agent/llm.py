@@ -1,10 +1,13 @@
-"""Interpret a question with an OpenAI-compatible language model."""
+"""Interpret a question with Gemini 3.8 Flash."""
 
 import os
 from typing import Literal
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
+
+GEMINI_MODEL = "gemini-3.8-flash"
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
 INSTRUCTIONS = """
 You are the intent reader for an educational inventory assistant.
@@ -39,36 +42,42 @@ class InterpretationError(Exception):
 
 
 def interpret(question: str) -> Interpretation:
-    base_url = os.getenv("LLM_BASE_URL", "http://127.0.0.1:8080/v1").rstrip("/")
-    model = os.getenv("LLM_MODEL", "qwen-inventory")
-    key = os.getenv("LLM_API_KEY")
-    headers = {"Authorization": f"Bearer {key}"} if key else {}
+    key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not key:
+        raise InterpretationError("Set GEMINI_API_KEY to use Gemini 3.8 Flash.")
 
     # The model selects an intent. It never receives the API address or any stock data.
     payload = {
-        "model": model,
-        "temperature": 0,
-        "max_tokens": 180,
-        "messages": [
-            {"role": "system", "content": INSTRUCTIONS},
-            {"role": "user", "content": question},
-        ],
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "inventory_intent",
-                "strict": True,
-                "schema": Interpretation.model_json_schema(),
+        "systemInstruction": {"parts": [{"text": INSTRUCTIONS}]},
+        "contents": [{"role": "user", "parts": [{"text": question}]}],
+        "generationConfig": {
+            "thinkingConfig": {"thinkingLevel": "LOW"},
+            "maxOutputTokens": 1024,
+            "responseFormat": {
+                "text": {
+                    "mimeType": "APPLICATION_JSON",
+                    "schema": Interpretation.model_json_schema(),
+                },
             },
         },
     }
 
     try:
-        response = httpx.post(
-            f"{base_url}/chat/completions", json=payload, headers=headers, timeout=25.0
-        )
+        response = httpx.post(GEMINI_URL, json=payload, headers={"x-goog-api-key": key}, timeout=30.0)
         response.raise_for_status()
-        content = response.json()["choices"][0]["message"]["content"]
-        return Interpretation.model_validate_json(content)
-    except (httpx.HTTPError, httpx.InvalidURL, ValueError, KeyError, IndexError, TypeError):
-        raise InterpretationError("The language model could not interpret the question.") from None
+        candidate = response.json()["candidates"][0]
+        if candidate.get("finishReason") != "STOP":
+            raise ValueError("Gemini did not finish the response.")
+        parts = candidate["content"]["parts"]
+        text = "".join(part.get("text", "") for part in parts if not part.get("thought"))
+        return Interpretation.model_validate_json(text)
+    except httpx.HTTPStatusError as error:
+        if error.response.status_code == 429:
+            raise InterpretationError("The Gemini API quota or rate limit was reached.") from None
+        raise InterpretationError("The Gemini API rejected the request or is unavailable.") from None
+    except httpx.TimeoutException:
+        raise InterpretationError("The Gemini API took too long to respond.") from None
+    except httpx.RequestError:
+        raise InterpretationError("The Gemini API could not be reached.") from None
+    except (ValueError, KeyError, IndexError, TypeError, AttributeError):
+        raise InterpretationError("Gemini did not return a valid interpretation.") from None
